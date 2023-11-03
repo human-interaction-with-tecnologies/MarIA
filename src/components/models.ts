@@ -1,8 +1,19 @@
-export interface Todo {
-  id: number;
-  content: string;
+export interface Author {
+  given: string
+  family: string
 }
 
-export interface Meta {
-  totalCount: number;
+export interface BibEntry {
+  DOI: string
+  url: string
+  abstract: string,
+  author: Author[],
+  'citation-key': string,
+  id: string,
+  issued: {
+    'date-parts': Array<number[]>
+  },
+  keyword: string
+  title: string
+  type: string
 }
