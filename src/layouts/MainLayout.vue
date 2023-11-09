@@ -6,7 +6,12 @@
           Quasar App
         </q-toolbar-title>
 
-        <div>Quasar v{{ $q.version }}</div>
+        <q-btn
+          round
+          flat
+          icon="mdi-theme-light-dark"
+          @click="$q.dark.toggle()"
+        />
       </q-toolbar>
     </q-header>
 

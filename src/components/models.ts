@@ -5,11 +5,11 @@ export interface Author {
 
 export interface BibEntry {
   DOI: string
-  url: string
-  abstract: string,
-  author: Author[],
-  'citation-key': string,
-  id: string,
+  URL: string
+  abstract: string
+  author: Author[]
+  'citation-key': string
+  id: string
   issued: {
     'date-parts': Array<number[]>
   },
