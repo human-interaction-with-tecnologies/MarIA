@@ -1,7 +1,17 @@
 <template>
   <q-card class="entry-card  column">
     <q-card-section class="text-h5">
-      <span v-html="highlight(bibData.title)" /> ({{ bibData.issued['date-parts'][0][0] }})
+      <a
+        target="_blank"
+        rel="noreferrer"
+        :href="bibData.URL"
+      >
+        <span v-html="highlight(bibData.title)" />
+
+        <q-icon class="q-ml-xs" name="mdi-open-in-new" />
+      </a>
+
+        ({{ bibData.issued['date-parts'][0][0] }})
     </q-card-section>
 
     <q-separator />
@@ -22,18 +32,39 @@
 
     <q-separator />
 
-    <q-card-actions align="right">
-      <q-btn
-        color="black"
-        target="_blank"
-        rel="noreferrer"
-        icon="mdi-open-in-new"
-        :href="bibData.URL || `https://doi.org/${bibData.DOI}`"
-        :label="$t(`paperCard.visit`)"
+    <q-card-actions>
+      <q-icon
+        name="mdi-close"
+        color="negative"
+        size="35px"
+        v-if="bibData.accepted === false"
         />
-      </q-card-actions>
-    </q-card>
-  </template>
+
+      <q-icon
+        name="mdi-check"
+        color="positive"
+        size="35px"
+        v-if="bibData.accepted === true"
+      />
+
+      <q-space />
+
+      <q-btn
+        color="negative"
+        icon="mdi-cancel"
+        :label="$t(`filtering.reject`)"
+        @click="$emit('reject', bibData.id)"
+      />
+
+      <q-btn
+        color="positive"
+        icon="mdi-check"
+        :label="$t(`filtering.accept`)"
+        @click="$emit('accept', bibData.id)"
+      />
+    </q-card-actions>
+  </q-card>
+</template>
 
 <script setup lang="ts">
 import { BibEntry } from './models'
@@ -47,6 +78,8 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+
+defineEmits(['accept', 'reject'])
 
 function highlight (field: string) {
   if (!field) return

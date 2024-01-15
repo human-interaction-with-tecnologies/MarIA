@@ -32,6 +32,7 @@
         <q-btn
           color="primary"
           type="submit"
+          icon="mdi-upload"
           :label="$t('upload.button')"
         />
 
@@ -45,7 +46,7 @@
         <q-btn-dropdown
           color="green"
           type="button"
-          :label="$t('filtering.prompt')"
+          :label="$t('export.button')"
           icon="mdi-export"
           auto-close
         >
@@ -81,13 +82,15 @@
     <div class="row q-mt-sm q-col-gutter-md">
       <div
         class="col-6"
-        v-for="entry in filter ? filteredEntries : entries"
+        v-for="entry in filteredEntries"
         :key="entry['citation-key']"
       >
         <entry-card
           class="fit"
           :bib-data="entry"
           :keywords="keywords"
+          @reject="entry.accepted = false"
+          @accept="entry.accepted = true"
         />
       </div>
     </div>
@@ -98,14 +101,16 @@
 import { ref, computed } from 'vue'
 import { Cite } from '@citation-js/core'
 import EntryCard from 'src/components/EntryCard.vue'
-import '@citation-js/plugin-bibjson'
 import { BibEntry } from 'src/components/models'
 import joinAuthors from 'src/utils/joinAuthors'
+import { useI18n } from 'vue-i18n'
 
 const bibfile = ref<File | null>(null)
 const entries = ref<BibEntry[]>([])
 const keywords = ref<string[]>([])
 const filter = ref(false)
+
+const { t } = useI18n()
 
 const filteredEntries = computed<BibEntry[]>(() => {
   if (keywords.value.length === 0) return entries.value
@@ -136,8 +141,9 @@ function handleFile ($event: SubmitEvent | Event) {
 
     reader.onload = (evt) => {
       bibText = evt.target?.result?.toString() || ''
+      const test = new Cite(bibText, { target: '@biblatex/entries+list' })
+      console.log(test)
       entries.value = new Cite(bibText).get()
-      // console.log(Cite(bibText), new Cite(bibText, { target: '@biblatex/entries+list' }))
     }
   }
 }
@@ -150,13 +156,13 @@ function exportData (fileType: 'csv' | 'bib') {
     textData += '"title","year","author","keywords","url","abstract","doi"\n'
 
     dataset.value.forEach(entry => {
-      const title = entry.title || 'Não consta'
-      const DOI = entry.DOI || 'Não consta'
-      const abstract = entry.abstract || 'Não consta'
-      const author = joinAuthors(entry.author) || 'Não consta'
-      const URL = entry.URL ? entry.URL : entry.DOI ? `https://doi.org/${entry.DOI}` : 'Não consta'
-      const year = entry.issued['date-parts'][0][0] || 'Não consta'
-      const keyword = entry.keyword || 'Não consta'
+      const title = entry.title || t('export.missing')
+      const DOI = entry.DOI || t('export.missing')
+      const abstract = entry.abstract || t('export.missing')
+      const author = joinAuthors(entry.author) || t('export.missing')
+      const URL = entry.URL ? entry.URL : entry.DOI ? 'https://doi.org/{entry.DOI}' : t('export.missing')
+      const year = entry.issued['date-parts'][0][0] || t('export.missing')
+      const keyword = entry.keyword || t('export.missing')
 
       const csvline = `"${title.replaceAll('"', '""')}","${year}","${author}","${keyword}","${URL}","${abstract.replaceAll('"', '""')}","${DOI}"\n`
       textData += csvline

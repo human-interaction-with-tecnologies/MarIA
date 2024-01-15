@@ -1,5 +1,6 @@
 import { boot } from 'quasar/wrappers'
 import { createI18n } from 'vue-i18n'
+import { Quasar } from 'quasar'
 
 import messages from 'src/i18n'
 
@@ -21,9 +22,7 @@ declare module 'vue-i18n' {
 }
 /* eslint-enable @typescript-eslint/no-empty-interface */
 
-const locale = navigator.languages && navigator.languages.length
-  ? navigator.languages[0]
-  : navigator.language
+const locale = Quasar.lang.getLocale()
 
 export default boot(({ app }) => {
   const i18n = createI18n({

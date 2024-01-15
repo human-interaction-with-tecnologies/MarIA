@@ -16,4 +16,6 @@ export interface BibEntry {
   keyword: string
   title: string
   type: string
+  accepted?: boolean
+  author_keywords?: string
 }

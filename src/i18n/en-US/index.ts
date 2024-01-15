@@ -5,11 +5,15 @@ export default {
     required: 'Required field'
   },
   export: {
-    button: 'Export'
+    button: 'Export',
+    missing: 'Not Included'
   },
   filtering: {
     prompt: 'Filter view',
-    keywords: 'Keywords'
+    keywords: 'Keywords',
+    mode: 'Filtering mode',
+    accept: 'Accept',
+    reject: 'Reject'
   },
   paperCard: {
     visit: 'Visit',
