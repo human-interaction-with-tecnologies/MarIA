@@ -43,7 +43,7 @@
 
         <q-space />
 
-        <q-btn-dropdown
+        <!-- <q-btn-dropdown
           color="green"
           type="button"
           :label="$t('export.button')"
@@ -75,11 +75,11 @@
               <q-item-section>BibTex</q-item-section>
             </q-item>
           </q-list>
-        </q-btn-dropdown>
+        </q-btn-dropdown> -->
       </div>
     </q-form>
 
-    <div class="row q-mt-sm q-col-gutter-md">
+    <!-- <div class="row q-mt-sm q-col-gutter-md">
       <div
         class="col-6"
         v-for="entry in filteredEntries"
@@ -93,91 +93,90 @@
           @accept="entry.accepted = true"
         />
       </div>
-    </div>
+    </div> -->
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { Cite } from '@citation-js/core'
-import EntryCard from 'src/components/EntryCard.vue'
-import { BibEntry } from 'src/components/models'
-import joinAuthors from 'src/utils/joinAuthors'
-import { useI18n } from 'vue-i18n'
+import { ref } from 'vue'
+// import { Cite } from '@citation-js/core'
+import { type Bibliography, promises } from '@retorquere/bibtex-parser'
+import { useWebWorkerFn } from '@vueuse/core'
+// import EntryCard from 'src/components/EntryCard.vue'
+// import joinAuthors from 'src/utils/joinAuthors'
+// import { useI18n } from 'vue-i18n'
+import { useQuasar } from 'quasar'
+import axios from 'axios'
+// import axios from 'axios'
 
 const bibfile = ref<File | null>(null)
-const entries = ref<BibEntry[]>([])
+const entries = ref<Bibliography>()
 const keywords = ref<string[]>([])
 const filter = ref(false)
 
-const { t } = useI18n()
+// const { t } = useI18n()
+const { loading } = useQuasar()
 
-const filteredEntries = computed<BibEntry[]>(() => {
-  if (keywords.value.length === 0) return entries.value
+// const filteredEntries = computed<BibEntry[]>(() => {
+//   if (keywords.value.length === 0) return entries.value
 
-  return entries.value.filter(entry => {
-    let hasTerm = false
+//   return entries.value.filter(entry => {
+//     let hasTerm = false
 
-    keywords.value.forEach(keyword => {
-      const pattern = RegExp('\\b' + keyword + '\\b', 'gi')
+//     keywords.value.forEach(keyword => {
+//       const pattern = RegExp('\\b' + keyword + '\\b', 'gi')
 
-      hasTerm = hasTerm || pattern.test(entry.abstract)
-      hasTerm = hasTerm || pattern.test(entry.title)
-      hasTerm = hasTerm || pattern.test(entry.keyword)
-    })
+//       hasTerm = hasTerm || pattern.test(entry.abstract)
+//       hasTerm = hasTerm || pattern.test(entry.title)
+//       hasTerm = hasTerm || pattern.test(entry.keyword)
+//     })
 
-    return hasTerm
-  })
-})
+//     return hasTerm
+//   })
+// })
 
-function handleFile ($event: SubmitEvent | Event) {
+async function handleFile ($event: SubmitEvent | Event) {
   const data = new FormData(($event.target as HTMLFormElement))
 
   if (data.has('file')) {
-    const reader = new FileReader()
-    let bibText = ''
+    loading.show()
+    const _data = await axios.post('http://localhost:3000/parse', data)
+    loading.hide()
 
-    reader.readAsText((data.get('file') as Blob), 'utf-8')
-
-    reader.onload = (evt) => {
-      bibText = evt.target?.result?.toString() || ''
-      const test = new Cite(bibText, { target: '@biblatex/entries+list' })
-      console.log(test)
-      entries.value = new Cite(bibText).get()
-    }
+    console.log(_data)
   }
 }
 
-function exportData (fileType: 'csv' | 'bib') {
-  let textData = ''
-  const dataset = filter.value ? filteredEntries : entries
+// function exportData (fileType: 'csv' | 'bib') {
+//   let textData = ''
+//   const dataset = filter.value ? filteredEntries : entries
 
-  if (fileType === 'csv') {
-    textData += '"title","year","author","keywords","url","abstract","doi"\n'
+//   if (fileType === 'csv') {
+//     textData += '"title","year","author","keywords","url","abstract","doi"\n'
 
-    dataset.value.forEach(entry => {
-      const title = entry.title || t('export.missing')
-      const DOI = entry.DOI || t('export.missing')
-      const abstract = entry.abstract || t('export.missing')
-      const author = joinAuthors(entry.author) || t('export.missing')
-      const URL = entry.URL ? entry.URL : entry.DOI ? 'https://doi.org/{entry.DOI}' : t('export.missing')
-      const year = entry.issued['date-parts'][0][0] || t('export.missing')
-      const keyword = entry.keyword || t('export.missing')
+//     dataset.value.forEach(entry => {
+//       const title = entry.title || t('export.missing')
+//       const DOI = entry.DOI || t('export.missing')
+//       const abstract = entry.abstract || t('export.missing')
+//       const author = joinAuthors(entry.author) || t('export.missing')
+//       const URL = entry.URL ? entry.URL : entry.DOI ? 'https://doi.org/{entry.DOI}' : t('export.missing')
+//       const year = entry.issued['date-parts'][0][0] || t('export.missing')
+//       const keyword = entry.keyword || t('export.missing')
 
-      const csvline = `"${title.replaceAll('"', '""')}","${year}","${author}","${keyword}","${URL}","${abstract.replaceAll('"', '""')}","${DOI}"\n`
-      textData += csvline
-    })
-  } else {
-    dataset.value.forEach(entry => {
-      textData += new Cite(entry).format('biblatex')
-    })
-  }
+//       const csvline = `"${title.replaceAll('"', '""')}","${year}","${author}","${keyword}","${URL}","${abstract.replaceAll('"', '""')}","${DOI}"\n`
+//       textData += csvline
+//     })
+//   } else {
+//     dataset.value.forEach(entry => {
+//       textData += new Cite(entry).format('biblatex')
+//     })
+//   }
 
-  const blob = new Blob([textData], { type: `text/${fileType === 'csv' ? 'csv' : 'bib'}` })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `export.${fileType}`
-  a.click()
-}
+//   const blob = new Blob([textData], { type: `text/${fileType === 'csv' ? 'csv' : 'bib'}` })
+//   const url = URL.createObjectURL(blob)
+//   const a = document.createElement('a')
+//   a.href = url
+//   a.download = `export.${fileType}`
+//   a.click()
+// }
 </script>
