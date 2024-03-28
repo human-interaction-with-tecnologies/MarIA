@@ -140,7 +140,7 @@ async function handleFile ($event: SubmitEvent | Event) {
 
   if (data.has('file')) {
     loading.show()
-    const _data = await axios.post('http://localhost:3000/parse', data)
+    const _data = await axios.post(process.env.VERCEL_ENV === 'development' ? 'http:/localhost:4200' : 'https://cardapioruback-1-a4608481.deta.app/', data)
     loading.hide()
 
     console.log(_data)
