@@ -140,7 +140,7 @@ async function handleFile ($event: SubmitEvent | Event) {
 
   if (data.has('file')) {
     loading.show()
-    const _data = await axios.post(process.env.APP_URL === 'http://localhost:9000/' ? 'http:/localhost:4200' : 'https://cardapioruback-1-a4608481.deta.app/', data)
+    const _data = await axios.post(process.env.APP_URL === 'http://localhost:9000/' ? 'http:/localhost:4200' : 'https://cardapioruback-1-a4608481.deta.app/parse', data)
     loading.hide()
 
     console.log(_data)
