@@ -19,7 +19,7 @@ const upload = multer({
 })
 app.disable('x-powered-by')
 app.use(cors({
-  origin: 'http://localhost:9000'
+  origin: process.env.ALLOWED_ORIGIN
 }))
 app.use(express.json())
 
