@@ -1,7 +1,7 @@
 {
-  "name": "tcc-gustavo-api",
+  "name": "maria-backend",
   "version": "1.0.0",
-  "description": "",
+  "description": "Backend for MarIA, a web application for SLRs, powered by AI",
   "main": "index.js",
   "scripts": {
     "start": "ts-node src/index.ts",

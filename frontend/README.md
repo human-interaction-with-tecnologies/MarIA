@@ -1,6 +1,6 @@
-# Quasar App (tcc-gustavo)
+# Quasar App (MarIA)
 
-A Quasar Project
+An application to help the execution phase of a systematic review, powered by AI
 
 ## Install the dependencies
 ```bash
