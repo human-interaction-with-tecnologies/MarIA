@@ -6,14 +6,17 @@ export default {
   },
   export: {
     button: 'Export',
-    missing: 'Not Included'
+    missing: 'Not Included',
+    csvHeader: '"Title","Year","Author","Keywords","URL","Abstract","DOI","Accepted"\n'
   },
   filtering: {
     prompt: 'Filter view',
     keywords: 'Keywords',
     mode: 'Filtering mode',
     accept: 'Accept',
-    reject: 'Reject'
+    reject: 'Reject',
+    accepted: 'Accepted',
+    rejected: 'Rejected'
   },
   paperCard: {
     visit: 'Visit',

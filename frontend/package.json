@@ -1,8 +1,8 @@
 {
-  "name": "maria-frontend",
-  "version": "1.0.0",
-  "description": "An application to help the execution phase of a systematic review, powered by AI",
-  "productName": "MarIA",
+  "name": "tcc-gustavo",
+  "version": "0.0.1",
+  "description": "A Quasar Project",
+  "productName": "Quasar App",
   "author": "Gustavo Rodrigues <gustavo.rodrigues@icen.ufpa.br>",
   "private": true,
   "scripts": {

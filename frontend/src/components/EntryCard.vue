@@ -1,5 +1,11 @@
 <template>
-  <q-card class="entry-card  column">
+  <q-card :class="{
+    'disabled': updating,
+    'entry-card column': true
+  }">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+      <q-spinner v-if="updating" size="200px" />
+    </div>
     <q-card-section class="text-h5">
       <a
         target="_blank"
@@ -19,9 +25,9 @@
     <q-separator v-if="bibData.type !== 'proceedings'" />
 
     <template v-if="bibData.type !== 'proceedings'">
-      <!-- <q-card-section>
-        {{ $t('paperCard.authors') }}: {{ joinAuthors(bibData.creators.author) }}
-      </q-card-section> -->
+      <q-card-section>
+        {{ $t('paperCard.authors') }}: {{ joinAuthors(bibData.fields.author) }}
+      </q-card-section>
 
       <q-card-section class="highlight">
         {{ $t('paperCard.abstract') }}: <span v-html="highlight(bibData.fields.abstract ? bibData.fields.abstract : $t('paperCard.missing.abstract'))" />
@@ -37,19 +43,17 @@
     <q-separator />
 
     <q-card-actions>
-      <!-- <q-icon
-        name="mdi-close"
-        color="negative"
-        size="35px"
-        v-if="bibData.accepted === false"
-        />
-
-      <q-icon
-        name="mdi-check"
-        color="positive"
-        size="35px"
-        v-if="bibData.accepted === true"
-      /> -->
+      <template v-if="bibData?.accepted != 'null'">
+        <span
+          :class="{
+            'q-ml-md text-bold': true,
+            'text-negative': !bibData.accepted,
+            'text-positive': bibData.accepted
+          }"
+        >
+          {{ $t(`filtering.${bibData.accepted ? 'accepted' : 'rejected'}`) }}
+        </span>
+      </template>
 
       <q-space />
 
@@ -57,33 +61,36 @@
         color="negative"
         icon="mdi-cancel"
         :label="$t(`filtering.reject`)"
-        @click="$emit('reject', bibData.key)"
+        @click="$emit('review', { key: bibData.key, accepted: false })"
       />
 
       <q-btn
         color="positive"
         icon="mdi-check"
         :label="$t(`filtering.accept`)"
-        @click="$emit('accept', bibData.key)"
+        @click="$emit('review', { key: bibData.key, accepted: true })"
         />
     </q-card-actions>
   </q-card>
 </template>
 
 <script setup lang="ts">
-import { type Entry } from '@retorquere/bibtex-parser'
+import { ReviwedEntry } from './models'
 import Validator from 'validator'
 import joinAuthors from 'src/utils/joinAuthors'
 import '@citation-js/plugin-bibtex'
 
 interface Props {
-  bibData: Entry
+  bibData: ReviwedEntry
   keywords: string[]
+  updating: boolean
 }
 
 const props = defineProps<Props>()
 
-defineEmits(['accept', 'reject'])
+defineEmits<{
+  review: [status: { key: string; accepted: boolean }]
+}>()
 
 function highlight (field: string) {
   if (!field) return

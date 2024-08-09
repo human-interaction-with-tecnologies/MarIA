@@ -23,6 +23,17 @@ app.use(cors({
 }))
 app.use(express.json())
 
+console.log(
+  `
+${chalk.bgGreen('language model:')} ${process.env.OLLAMA_LLM}
+${chalk.bgGreen('embedding model:')} ${process.env.OLLAMA_EMBEDDING_MODEL}
+  `
+)
+
+interface ReviewedEntry extends Entry {
+  accepted?: boolean | 'null'
+}
+
 const client = new ChromaClient({
   path: process.env.CHROMADB_HOST
 })
@@ -39,9 +50,21 @@ app.post('/chat', authentication, async (req, res) => {
     embeddingFunction: ollamaEmbedder
   })
 
-  const chatHistory = await messageCollection.query({
+  const bibCollection = await client.getOrCreateCollection({
+    name: `bibtex-${user.uid}`,
+    embeddingFunction: ollamaEmbedder
+  })
+
+  const relevantPapers = await bibCollection.query({
     queryTexts: [req.body.message],
-    nResults: 5
+    nResults: 5,
+    where: {
+      "$or": [{
+        accepted: true
+      }, {
+        accepted: 'null'
+      }]
+    }
   })
 
   await messageCollection.add({
@@ -52,17 +75,33 @@ app.post('/chat', authentication, async (req, res) => {
     documents: [req.body.message]
   })
 
-  const messages = chatHistory.documents[0].map((document, index) => {
-    return {
-      role: 'user',
-      content: `This is a previous message from our chat, it was sent by ${chatHistory.metadatas[0][index]?.sentByUser ? 'me' : 'you'}: ${document}`
-    }
-  })
+  const prompt = `
+You are a helpful assistant helping a researcher with their systematic review of the literature, use information provided bellow to answer their question.
+Try to adhere to the context as much as possible.
 
-  messages.push({
-    role: 'user',
-    content: req.body.message
-  })
+Relevant papers: ${
+  relevantPapers.documents[0].map((document, index) => {
+    const bibData: ReviewedEntry = JSON.parse(relevantPapers.metadatas[0][index]?.fields as string)
+
+    return `
+Title: ${bibData.fields.title}
+Abstract: ${bibData.fields.abstract}
+    `
+  }).join('\n')
+}
+
+User query: ${req.body.message}
+Answer:
+  `
+
+  console.log(prompt)
+
+  const messages = [
+    {
+      role: 'system',
+      content: prompt
+    }
+  ]
 
   console.log(chalk.bgCyan('got chat request:', req.body.message))
 
@@ -76,19 +115,24 @@ app.post('/chat', authentication, async (req, res) => {
   const stream = response.data
   let fullData = ''
   stream.on('data', async (data: any) => { 
-    const chunk = JSON.parse(data.toString())
-    res.write(chunk.message.content)
-    fullData += chunk.message.content
+    const _data = data.toString().replace(/}{/g, '},{')
+    try {
+      const chunk = JSON.parse(_data)
+      res.write(chunk.message.content)
+      fullData += chunk.message.content
 
-    if(chunk.done) {
-      await messageCollection.add({
-        ids: [Date.now().toString()],
-        metadatas: [{
-          sentByUser: false
-        }],
-        documents: [fullData]
-      })
-      res.end()
+      if(chunk.done) {
+        await messageCollection.add({
+          ids: [Date.now().toString()],
+          metadatas: [{
+            sentByUser: false
+          }],
+          documents: [fullData]
+        })
+        res.end()
+      }
+    } catch (e) {
+      console.log(chalk.bgRed('error:'), e)
     }
   })
 })
@@ -119,10 +163,11 @@ app.get('/history', authentication, async (req, res) => {
 app.post('/bibtex', authentication, upload.single('file'), async (req, res) => {
   const fileContents = req.file?.buffer.toString() || ''
   const collectionName = `bibtex-${(res.locals.user as DecodedIdToken).uid}`
-  const parsed = parse(fileContents)
+  const parsed: ReviewedEntry[] = parse(fileContents).entries
   
   try {
-    parsed.entries.sort(function (a, b) {
+    parsed.sort(function (a, b) {
+      a.accepted = 'null'
       if (a.fields.title < b.fields.title) {
         return -1
       }
@@ -131,7 +176,7 @@ app.post('/bibtex', authentication, upload.single('file'), async (req, res) => {
       }
       return 0;
     })
-    res.json(parsed.entries)
+    res.json(parsed)
     console.log(`Parsed bibtex file of ${req.file?.size} bytes`)
   } catch {
     res.status(400).send('Error parsing file')
@@ -148,31 +193,46 @@ app.post('/bibtex', authentication, upload.single('file'), async (req, res) => {
     }
   })
   
-  firestore.collection(collectionName).add(parsed)
+  firestore.collection(collectionName).add({entries: parsed})
 
   const promises: Promise<any>[] = []
-  parsed.entries.forEach(async (entry, index) => {
+  parsed.forEach(async (entry, index) => {
     promises.push(bibDb.add({
       ids: [entry.key],
       metadatas: [{
         auxValue: 1,
         type: entry.type,
         fullstring: entry.input,
+        accepted: 'null',
         fields: JSON.stringify(entry)
       }],
       documents: [entry.fields.abstract || '']
     })
       .then((data) => {
-        console.log(chalk.bgMagentaBright('chromadb:', `${index+1}/${parsed.entries.length}`), entry.fields.title)
+        console.log(chalk.bgMagentaBright('chromadb:', `${index+1}/${parsed.entries.length}`), entry.fields.title, data)
       })
-      .catch(() => {
-        console.log(chalk.bgMagentaBright('chromadb:', `${index+1}/${parsed.entries.length}`), chalk.bgRed('ERROR'), entry.fields.title)
+      .catch((error) => {
+        console.log(chalk.bgMagentaBright('chromadb:', `${index+1}/${parsed.entries.length}`), chalk.bgRed(error), entry.fields.title)
       }))
   })
 
   Promise.all(promises)
     .finally(async () => {
       console.log(chalk.bgMagentaBright('chromadb:'), 'Done')
+      const fbCollection = await getCollection(collectionName)
+
+      fbCollection.entries.forEach(async (entry: ReviewedEntry) => {
+        if (typeof entry.accepted === 'boolean') {
+          await bibDb.update({
+            ids: [entry.key],
+            metadatas: [{
+              fields: JSON.stringify(entry),
+              accepted: entry.accepted
+            }]
+          }).then(() => console.log(chalk.bgMagenta('chromadb:'), 'Updated accepted status of document with key', entry.fields.title))
+        }
+      })
+
       await deleteCollection(collectionName)
     })
 
@@ -189,8 +249,8 @@ app.get('/bibtex', authentication, async (req, res) => {
   let result = []
 
   if (fbResult.entries) {
-    result = fbResult.entries
     console.log('Returned bibdata from', chalk.bgRed('firebase'))
+    result = fbResult.entries
   } else {
     result = chromeResult.metadatas.map((metadata) => {
       return JSON.parse(metadata?.fields as string)
@@ -209,6 +269,49 @@ app.get('/bibtex', authentication, async (req, res) => {
   })
 
   res.json(result)
+})
+
+app.post('/review', authentication, async (req, res) => {
+  const collectionName = `bibtex-${(res.locals.user as DecodedIdToken).uid}`
+  const fbResult = await getCollection(collectionName)
+  const chromeResult = (await client.getOrCreateCollection({
+    name: collectionName,
+    embeddingFunction: ollamaEmbedder
+  }))
+
+  if (fbResult.entries) {
+    fbResult.entries.forEach(async (entry: ReviewedEntry) => {
+      if (entry.key === req.body.key) {
+        entry.accepted = req.body.accepted
+      }
+    })
+  
+    await deleteCollection(collectionName)
+    firestore.collection(collectionName).add({entries: fbResult.entries})
+    console.log(chalk.bgRed('firebase:'), 'Updated accepted status of document with key', req.body.key)
+    res.status(200).json({
+      message: 'ok'
+    })
+  } else {
+    let document = await chromeResult.get({
+      ids: [req.body.key]
+    })
+
+    const newFields = JSON.parse(document.metadatas[0]?.fields as string)
+    newFields.accepted = req.body.accepted
+
+    await chromeResult.update({
+      ids: [req.body.key],
+      metadatas: [{
+        accepted: req.body.accepted,
+        fields: JSON.stringify(newFields)
+      }]
+    })
+    console.log(chalk.bgMagenta('chromadb:'),'Updated accepted status of document with key', req.body.key)
+    res.status(200).json({
+      message: 'ok'
+    })
+  }
 })
 
 app.listen(port, () => {

@@ -54,7 +54,7 @@
         </q-btn>
 
         <q-btn
-          v-if="route.path === 'app'"
+          v-if="route.name === 'Main app'"
           @click="toggleRightDrawer"
           flat
           round

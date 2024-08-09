@@ -6,14 +6,17 @@ export default {
   },
   export: {
     button: 'Exportar',
-    missing: 'Não consta'
+    missing: 'Não consta',
+    csvHeader: '"Título","Ano","Autor","Palavras-chave","URL","Resumo","DOI","Aceito"\n'
   },
   filtering: {
     prompt: 'Filtrar exibição',
     keywords: 'Palavras-chave',
     mode: 'Modo filtragem',
     accept: 'Aceitar',
-    reject: 'Rejeitar'
+    reject: 'Rejeitar',
+    accepted: 'Aceito',
+    rejected: 'Rejeitado'
   },
   paperCard: {
     visit: 'Visitar',

@@ -83,13 +83,15 @@
     <div class="row q-mt-sm q-col-gutter-md">
       <div
         class="col-6"
-        v-for="entry in (filter ? filteredEntries : bibliography)"
+        v-for="entry in (filter ? filteredEntries.toArray() : bibliography?.toArray())"
         :key="entry.key"
       >
         <entry-card
           class="fit"
+          @review="handleReview($event)"
           :bib-data="entry"
           :keywords="keywords"
+          :updating="updating.includes(entry.key)"
         />
       </div>
     </div>
@@ -98,7 +100,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { type Entry } from '@retorquere/bibtex-parser'
+import { ReviwedEntry } from 'src/components/models'
 import { useI18n } from 'vue-i18n'
 import { useQuasar } from 'quasar'
 import EntryCard from 'src/components/EntryCard.vue'
@@ -106,22 +108,49 @@ import { useCurrentUser, useFirebaseAuth } from 'vuefire'
 import joinAuthors from 'src/utils/joinAuthors'
 import axios from 'axios'
 
+class KeyedEntries {
+  private entries: Record<string, ReviwedEntry> = {}
+
+  constructor (entries: ReviwedEntry[]) {
+    entries.forEach(entry => {
+      this.entries[entry.key] = entry
+    })
+  }
+
+  get (key: string): ReviwedEntry | undefined {
+    return this.entries[key]
+  }
+
+  set (key: string, entry: ReviwedEntry) {
+    this.entries[key] = entry
+  }
+
+  delete (key: string) {
+    delete this.entries[key]
+  }
+
+  public toArray (): ReviwedEntry[] {
+    return Object.values(this.entries)
+  }
+}
+
 const bibfile = ref<File | null>(null)
-const bibliography = ref<Entry[]>()
+const bibliography = ref<KeyedEntries>()
 const keywords = ref<string[]>([])
 const filter = ref(false)
 const user = useCurrentUser()
 const auth = useFirebaseAuth()
+const updating = ref<string[]>([])
 
 const { t } = useI18n()
 const { loading } = useQuasar()
 
-const filteredEntries = computed<Entry[]>(() => {
-  if (!bibliography.value) return [] as Entry[]
+const filteredEntries = computed<KeyedEntries>(() => {
+  if (!bibliography.value) return {} as KeyedEntries
 
   if (keywords.value.length === 0) return bibliography.value
 
-  return bibliography.value?.filter(entry => {
+  const filtered = bibliography.value?.toArray().filter(entry => {
     let hasTerm = false
 
     keywords.value.forEach(keyword => {
@@ -134,6 +163,8 @@ const filteredEntries = computed<Entry[]>(() => {
 
     return hasTerm
   })
+
+  return new KeyedEntries(filtered)
 })
 
 async function handleFile ($event: SubmitEvent | Event) {
@@ -141,7 +172,7 @@ async function handleFile ($event: SubmitEvent | Event) {
 
   if (data.has('file')) {
     loading.show()
-    const response = await axios.post<Entry[]>(`${import.meta.env.VITE_API_URL}/bibtex`, data, {
+    const response = await axios.post<ReviwedEntry[]>(`${import.meta.env.VITE_API_URL}/bibtex`, data, {
       headers: {
         Authorization: `Bearer ${await user.value?.getIdToken()}`
       }
@@ -149,7 +180,17 @@ async function handleFile ($event: SubmitEvent | Event) {
     loading.hide()
     // console.log(response)
 
-    bibliography.value = response.data
+    const keyedEntries: {
+      [key: string]: ReviwedEntry
+    } = {}
+
+    response.data.forEach(entry => {
+      keyedEntries[entry.key] = entry
+    })
+
+    console.log(keyedEntries)
+
+    bibliography.value = new KeyedEntries(response.data)
     console.log(bibliography.value)
   }
 }
@@ -159,23 +200,41 @@ function exportData (fileType: 'csv' | 'bib') {
   const dataset = filter.value ? filteredEntries.value : bibliography.value
 
   if (fileType === 'csv') {
-    textData += '"title","year","author","keywords","url","abstract","doi"\n'
+    textData += t('export.csvHeader')
 
-    dataset?.forEach((_entry: Entry) => {
+    dataset?.toArray().forEach((_entry: ReviwedEntry) => {
       const entry = _entry.fields
+      console.log(entry)
       const title = entry.title || t('export.missing')
-      const DOI = entry.DOI || t('export.missing')
+      const DOI = entry.doi || t('export.missing')
       const abstract = entry.abstract || t('export.missing')
       const author = joinAuthors(entry.author) || t('export.missing')
-      const URL = entry.URL ? entry.URL : entry.DOI ? 'https://doi.org/{entry.DOI}' : t('export.missing')
       const year = entry.year || t('export.missing')
-      const keyword = entry.keyword || t('export.missing')
+      const keywords = entry.keywords?.join(', ') || t('export.missing')
+      let URL, accepted
 
-      const csvline = `"${title.replaceAll('"', '""')}","${year}","${author}","${keyword}","${URL}","${abstract.replaceAll('"', '""')}","${DOI}"\n`
+      if (_entry.accepted === 'null') {
+        accepted = ' '
+      } else if (_entry.accepted) {
+        console.log(entry)
+        accepted = t('filtering.accepted')
+      } else {
+        accepted = t('filtering.rejected')
+      }
+
+      if (entry.URL) {
+        URL = entry.url
+      } else if (entry.doi) {
+        URL = `https://doi.org/${entry.doi}`
+      } else {
+        URL = t('export.missing')
+      }
+
+      const csvline = `"${title.replaceAll('"', '""')}","${year}","${author}","${keywords}","${URL}","${abstract.replaceAll('"', '""')}","${DOI}","${accepted}"\n`
       textData += csvline
     })
   } else {
-    dataset?.forEach(entry => {
+    dataset?.toArray().forEach(entry => {
       textData += entry.input + '\n\n'
     })
   }
@@ -192,13 +251,46 @@ async function getBibdata () {
   loading.show({
     message: 'Loading your bibliography...'
   })
-  const response = await axios.get<Entry[]>(`${import.meta.env.VITE_API_URL}/bibtex`, {
+  const response = await axios.get<ReviwedEntry[]>(`${import.meta.env.VITE_API_URL}/bibtex`, {
     headers: {
       Authorization: `Bearer ${await user.value?.getIdToken()}`
     }
   })
 
-  bibliography.value = response.data
+  const keyedEntries: {
+    [key: string]: ReviwedEntry
+  } = {}
+
+  response.data?.forEach(entry => {
+    keyedEntries[entry.key] = entry
+  })
+
+  console.log(keyedEntries)
+
+  bibliography.value = new KeyedEntries(response.data)
+}
+
+async function handleReview ($event: { key: string, accepted: boolean }) {
+  const entry = bibliography.value?.get($event.key)
+  updating.value.push($event.key)
+
+  axios.post(`${import.meta.env.VITE_API_URL}/review`, {
+    key: $event.key,
+    accepted: $event.accepted
+  }, {
+    headers: {
+      Authorization: `Bearer ${await user.value?.getIdToken()}`
+    }
+  })
+    .then(res => {
+      if (res.data.message === 'ok') {
+        updating.value = updating.value.filter(key => key !== $event.key)
+        if (entry) {
+          entry.accepted = $event.accepted
+          bibliography.value?.set($event.key, entry)
+        }
+      }
+    })
 }
 
 const retry = setInterval(() => {
