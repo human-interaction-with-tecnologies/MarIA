@@ -9,11 +9,15 @@ import { ChromaClient, OllamaEmbeddingFunction } from "chromadb"
 import { firestore, authentication, deleteCollection, getCollection } from './firebase'
 import { DecodedIdToken } from 'firebase-admin/lib/auth/token-verifier'
 import { Entry, parse } from "@retorquere/bibtex-parser"
+import http from 'http'
+import https from 'https'
+import fs from 'fs'
 
 dotenv.config()
 
 const app = express()
-const port = 3000
+const httpPort = 3000
+const httpsPort = 3001
 const upload = multer({
   storage: multer.memoryStorage()
 })
@@ -314,6 +318,15 @@ app.post('/review', authentication, async (req, res) => {
   }
 })
 
-app.listen(port, () => {
-  console.log(chalk.blue(`Server is running on http://localhost:${port}`))
+http.createServer(app).listen(httpPort, () => {
+  console.log(chalk.blue(`HTTP Server is running on http://localhost:${httpPort}`))
+})
+
+const credentials = {
+  key: fs.readFileSync('src/ssl/private.key'),
+  cert: fs.readFileSync('src/ssl/certificate.crt')
+}
+
+https.createServer(credentials, app).listen(httpsPort, () => {
+  console.log(chalk.green(`HTTPS Server is running on https://localhost:${httpsPort}`))
 })
