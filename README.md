@@ -7,6 +7,7 @@
 ├── backend/
 │   ├── node_modules
 │   ├── src/
+        ├── firebase.ts
 │   │   └── index.ts
 │   └── package.json
 └── frontend/
