@@ -323,8 +323,9 @@ http.createServer(app).listen(httpPort, () => {
 })
 
 const credentials = {
-  key: fs.readFileSync('src/ssl/private.key'),
-  cert: fs.readFileSync('src/ssl/certificate.crt')
+  key: fs.readFileSync(`${process.env.SSL_FOLDER as string}/private.key`),
+  cert: fs.readFileSync(`${process.env.SSL_FOLDER as string}/certificate.crt`),
+  bundle: fs.readFileSync(`${process.env.SSL_FOLDER as string}/ca_bundle.crt`)
 }
 
 https.createServer(credentials, app).listen(httpsPort, () => {

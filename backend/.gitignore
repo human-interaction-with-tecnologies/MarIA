@@ -4,3 +4,7 @@ node_modules
 fbconfig.json
 dist
 ssl
+maria
+ollama
+chroma
+docker-compose.yml
